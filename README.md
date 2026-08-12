@@ -266,6 +266,13 @@ node test/heartbeat_v16.mjs    # 运行 34 项断言
 
 ---
 
+## You might also like
+
+- [iphone-auto-backup](https://github.com/andersyin/iphone-auto-backup) — Auto-backup iPhone photos & videos on USB plug-in, EXIF date archiving, content-hash dedup
+- [restic-backup-toolkit](https://github.com/andersyin/restic-backup-toolkit) — 3-tier macOS backup: rsync mirror + restic cold backup + SHA256 audit
+
+---
+
 ## Star History
 
 <div align="center">
