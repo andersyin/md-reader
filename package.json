@@ -1,0 +1,19 @@
+{
+  "name": "md-reader",
+  "version": "1.6.0",
+  "description": "Zero-dependency single-file HTML markdown reader with TOC, search, speed-reading panel, AI summary cards, and XSS hardening",
+  "license": "MIT",
+  "author": "Anders Yin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andersyin/md-reader.git"
+  },
+  "scripts": {
+    "test": "node test/generate-bundle.mjs && node test/heartbeat_v16.mjs",
+    "test:bundle": "node test/generate-bundle.mjs",
+    "test:phase": "node test/generate-bundle.mjs && node test/heartbeat_v16.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.40.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "tl_dr": "md-reader 验收演示：本文档验证 AI 摘要 sidecar 能被收集脚本并入并在阅读器顶部以摘要卡展示。",
+  "key_points": [
+    "sidecar 命名约定：<文件名>.summary.json，与 md 同目录",
+    "tl_dr 与 key_points 至少有其一，否则被忽略",
+    "阅读器零 LLM，摘要由调用方 AI 生成注入"
+  ],
+  "conclusions": [
+    "两层摘要设计：确定性提炼始终可用，AI 摘要锦上添花"
+  ],
+  "action_items": [
+    "验收人确认摘要卡与文件列表徽标显示正常"
+  ],
+  "generated_by": "Qoder",
+  "generated_at": "2026-07-29 12:00"
+}
