@@ -12,6 +12,8 @@ TOC sidebar, full-text search, speed-reading panel, AI summary cards, XSS harden
 ![XSS Hardened](https://img.shields.io/badge/security-XSS%20hardened-red.svg)
 ![Release](https://img.shields.io/github/v/release/andersyin/md-reader)
 ![Stars](https://img.shields.io/github/stars/andersyin/md-reader?style=social)
+![Tests](https://img.shields.io/github/actions/workflow/status/andersyin/md-reader/test.yml?label=tests)
+![Forks](https://img.shields.io/github/forks/andersyin/md-reader?style=social)
 
 [English](#why-this-exists) | [中文文档](#中文文档)
 
@@ -24,6 +26,14 @@ TOC sidebar, full-text search, speed-reading panel, AI summary cards, XSS harden
 AI tools and developers produce a lot of markdown — reports, analysis, documentation, retrospectives. But reading a 500-line `.md` file in a text editor is painful. Existing solutions either require an IDE (VS Code), cost money (Typora), or are heavyweight PKM systems (Obsidian).
 
 **MD Reader is one HTML file.** You double-click it, drag in a markdown file, and get a clean, structured reading experience with table of contents, syntax highlighting, search, and themes. No install, no server, no cloud, no tracking.
+
+### Who is this for?
+
+- **AI tool users** — Claude, Cursor, and other AI tools generate long markdown reports; MD Reader makes them readable
+- **Developers** — read documentation without opening an IDE
+- **Writers** — preview markdown with a clean, distraction-free interface
+- **Privacy-conscious users** — zero network, zero tracking, zero cloud
+- **Anyone with a `.md` file** — double-click and read
 
 ## Features
 
@@ -187,7 +197,7 @@ md-reader/
 
 ## Contributing
 
-Contributions welcome! Especially:
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md). Especially:
 - Cross-platform launchers (Windows `.bat`, Linux `.sh`)
 - Internationalization (English UI labels)
 - Additional markdown extensions (mermaid diagrams, math rendering)
@@ -253,6 +263,18 @@ npm install                    # 安装 playwright-core
 node test/generate-bundle.mjs  # 从测试夹具生成 bundle
 node test/heartbeat_v16.mjs    # 运行 34 项断言
 ```
+
+---
+
+## Star History
+
+<div align="center">
+
+<a href="https://star-history.com/#andersyin/md-reader&Date">
+  <img src="https://api.star-history.com/svg?repos=andersyin/md-reader&type=Date" alt="Star History Chart" width="600">
+</a>
+
+</div>
 
 <div align="center">
 
