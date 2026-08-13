@@ -17,8 +17,9 @@ MD Reader is a single HTML file with zero external dependencies. This is the pro
 git clone https://github.com/andersyin/md-reader.git
 cd md-reader
 npm install           # installs playwright-core for testing
+node test/sanitize.mjs          # no browser
 node test/generate-bundle.mjs   # generate test bundle
-node test/heartbeat_v16.mjs     # run 34 assertions
+node test/heartbeat_v16.mjs     # run 37 Playwright assertions
 ```
 
 ## Guidelines
@@ -26,14 +27,17 @@ node test/heartbeat_v16.mjs     # run 34 assertions
 ### HTML/JS changes
 - All code goes in `md-reader.html` — single file, no build step
 - Escape all user content (markdown is untrusted input)
-- Test XSS resistance with `test/xss-sample.md`
+- Reject `javascript:` / `data:` / `vbscript:` even when camouflaged (ZWSP, HTML entities, percent-encoding)
+- Test XSS resistance with `test/xss-sample.md` and `node test/sanitize.mjs`
 - Keep file size under 100KB
 
 ### Testing
 ```bash
+node test/sanitize.mjs          # regenerates nothing; must stay green
 node test/generate-bundle.mjs   # regenerate bundle after fixture changes
-node test/heartbeat_v16.mjs     # must pass all 34 assertions
+node test/heartbeat_v16.mjs     # must pass all 37 assertions
 ```
+Linux CI runs `bash -n` + ShellCheck on `open-reader.command`, then the Node checks above. It cannot exercise Finder double-click.
 
 ### Pull requests
 - One feature/fix per PR
