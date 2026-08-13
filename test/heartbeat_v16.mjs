@@ -18,7 +18,10 @@ const ok = (name, cond, extra = '') => {
 };
 const WANTED = process.env.PHASE || 'CDE';
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const browser = await chromium.launch({ channel: 'chrome', headless: true }).catch(async err => {
+  console.warn('Chrome channel unavailable, trying bundled Chromium:', err.message);
+  return chromium.launch({ headless: true });
+});
 
 /* ============ Phase C: V1.6 Edit Mode ============ */
 if (WANTED.includes('C')) {
@@ -199,6 +202,23 @@ page.on('dialog', d => { alerts.push(d.message()); d.dismiss(); });
 await page.goto(HTML);
 await page.waitForTimeout(1500);
 
+const fixture = await page.evaluate(() => {
+  const el = document.querySelector('#content, article, .markdown-body, main');
+  const danger = [...el.querySelectorAll('a, img')].filter(n => {
+    const u = (n.getAttribute('href') || n.getAttribute('src') || '').trim().toLowerCase()
+      .replace(/[\u0000-\u0020\u00a0\u200b-\u200f\ufeff]/g, '');
+    return /^(javascript|data|vbscript):/.test(u) || u.includes('javascript:') || u.includes('vbscript:') || u.startsWith('//');
+  }).length;
+  return {
+    danger,
+    github: [...el.querySelectorAll('a')].some(a => a.getAttribute('href') === 'https://github.com'),
+    scripts: el.querySelectorAll('script').length,
+  };
+});
+ok('Fixture xss-sample.md: no script tags', fixture.scripts === 0);
+ok('Fixture xss-sample.md: no dangerous href/src', fixture.danger === 0);
+ok('Fixture xss-sample.md: legal GitHub link kept', fixture.github);
+
 const injRes = await page.evaluate(async () => {
   document.querySelector('#btn-edit').click();
   await new Promise(r => setTimeout(r, 150));
@@ -213,6 +233,12 @@ const injRes = await page.evaluate(async () => {
 
 ![danger](javascript:alert('edit-xss-4'))
 
+[zwsp](\u200bjavascript:alert('edit-xss-zwsp'))
+
+[entity](javascript&colon;alert('edit-xss-entity'))
+
+[pct](javascript%3Aalert('edit-xss-pct'))
+
 \`\`\`html
 <script>alert('edit-code-safe')</script>
 \`\`\`
@@ -226,8 +252,9 @@ Legal link [GitHub](https://github.com)
   return {
     scripts: el.querySelectorAll('script').length,
     dangerLinks: [...el.querySelectorAll('a, img')].filter(n => {
-      const u = (n.getAttribute('href') || n.getAttribute('src') || '').trim().toLowerCase();
-      return u.startsWith('javascript:') || u.startsWith('data:') || u.startsWith('vbscript:');
+      const u = (n.getAttribute('href') || n.getAttribute('src') || '').trim().toLowerCase()
+        .replace(/[\u0000-\u0020\u00a0\u200b-\u200f\ufeff]/g, '');
+      return /^(javascript|data|vbscript):/.test(u) || u.includes('javascript:') || u.includes('vbscript:') || u.startsWith('//');
     }).length,
     codeSafe: el.innerText.includes("alert('edit-code-safe')"),
     legalOk: [...el.querySelectorAll('a')].some(a => a.getAttribute('href') === 'https://github.com'),

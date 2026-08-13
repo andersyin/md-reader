@@ -65,10 +65,10 @@ AI tools and developers produce a lot of markdown — reports, analysis, documen
 
 ### Security
 
-- **XSS hardened** — all HTML is escaped; `<script>`, `javascript:`, `data:`, `vbscript:` protocols are stripped from links and images
+- **XSS hardened** — all HTML is escaped; `javascript:`, `data:`, and `vbscript:` (including Unicode / HTML-entity / percent-encoding camouflage) are stripped from links and images. CSP + `no-referrer` as defense in depth.
 - **Code blocks** — payloads inside code blocks are displayed as text, never executed
-- **Tested** — adversarial XSS samples are included in the test suite
-- **Zero network** — no external requests, no CDN, no tracking, no analytics
+- **Tested** — adversarial XSS samples (including protocol camouflage) are in the test suite
+- **Zero network (reader chrome)** — no CDN, no tracking, no analytics. The reader itself makes no requests. `http(s)` images *inside a markdown file* will still be fetched by the browser; referrers are stripped.
 
 ### Themes
 
@@ -82,31 +82,32 @@ AI tools and developers produce a lot of markdown — reports, analysis, documen
 
 ```bash
 git clone https://github.com/andersyin/md-reader.git
+# macOS
 open md-reader/md-reader.html
+# Linux: xdg-open md-reader/md-reader.html
 ```
 
-Drag and drop any `.md` file onto the browser window.
+Drag and drop any `.md` file onto the browser window. This is the empty-state path the HTML itself describes.
 
-### Option B: macOS Launcher (recommended)
+### Option B: Launcher (multi-file + AI sidecars)
 
 ```bash
 git clone https://github.com/andersyin/md-reader.git
 cd md-reader
 
-# Open one or more markdown files
+# Open one or more markdown files (macOS `open`, Linux `xdg-open`)
 bash open-reader.command report.md analysis.md notes.md
 
-# Or double-click open-reader.command in Finder (uses last bundle)
+# Or double-click open-reader.command in Finder (uses last bundle; macOS)
 ```
 
-The launcher bundles your markdown files (and AI summary sidecars) into a single `_md_bundle.js`, then opens the reader with all files pre-loaded. Switch between documents from the file list sidebar.
+The launcher bundles your markdown files (and AI summary sidecars) into a single `_md_bundle.js`, then opens the reader with all files pre-loaded. Switch between documents from the file list sidebar. Requires Python 3.
 
 ### AI Summary Sidecar
 
-Create a JSON file next to your markdown file:
+Create `report.md.summary.json` next to `report.md`:
 
 ```json
-// report.md.summary.json
 {
   "tl_dr": "Quarterly revenue grew 23% YoY, driven by SaaS expansion.",
   "key_points": [
@@ -156,25 +157,32 @@ When you open `report.md` via the launcher, the summary card appears at the top.
 
 ```bash
 npm install                    # installs playwright-core
+node test/sanitize.mjs         # sanitizer + first-run/policy checks (no browser)
 node test/generate-bundle.mjs  # generates test bundle from fixtures
-node test/heartbeat_v16.mjs    # runs 34 assertions across 3 phases
+node test/heartbeat_v16.mjs    # Playwright: 37 assertions across 3 phases
 ```
 
+Or `npm test` (sanitize + bundle + heartbeat).
+
 Test phases:
+- **sanitize** — `safeUrl` camouflage, XSS fixture render, CSP/zero-CDN, empty-state filename
 - **Phase C** — Edit mode: enter, modify, apply, undo, download, switch, keyboard shortcuts
-- **Phase D** — XSS resistance: script injection, dangerous protocols, code block safety
-- **Phase E** — Regression: zero-network, search, HTML export, lightbox, status bar, back-to-top
+- **Phase D** — XSS resistance: fixture + edit-injected script/protocol/camouflage, code block safety
+- **Phase E** — Regression: zero-network chrome, search, HTML export, lightbox, status bar, back-to-top
 
 ## File Structure
 
 ```
 md-reader/
-├── md-reader.html              # The reader (single file, 77KB, zero deps)
-├── open-reader.command         # macOS launcher (bundles files + opens reader)
+├── md-reader.html              # The reader (single file, ~77KB, zero deps)
+├── open-reader.command         # Launcher (bundles files + opens reader)
 ├── LICENSE
+├── CONTRIBUTING.md
 ├── package.json                # For running tests only
+├── .github/workflows/test.yml  # sanitize + shellcheck + Playwright
 ├── test/
-│   ├── heartbeat_v16.mjs       # Playwright test suite (34 assertions)
+│   ├── sanitize.mjs            # Node-only sanitizer / policy checks
+│   ├── heartbeat_v16.mjs       # Playwright suite (37 assertions)
 │   ├── generate-bundle.mjs     # Generates test bundle from fixtures
 │   ├── xss-sample.md           # XSS adversarial test fixture
 │   ├── summary-demo.md         # AI summary sidecar demo
@@ -186,14 +194,15 @@ md-reader/
 ## Requirements
 
 - Any modern browser (Chrome, Firefox, Safari, Edge)
-- For the launcher: macOS with Python 3 (pre-installed on macOS)
-- For testing: Node.js + Chrome/Chromium
+- For the launcher: Python 3; macOS `open` or Linux `xdg-open`
+- For testing: Node.js 22 + Chrome/Chromium
 
 ## Limitations
 
 - Files are loaded into browser memory; very large files (>10MB) may be slow
-- The launcher (`open-reader.command`) is macOS-only; on other platforms, use drag-and-drop
+- Finder double-click of `open-reader.command` is macOS-only; on Linux use `bash open-reader.command …` or drag-and-drop
 - AI summaries are read-only from sidecar JSON; the reader does not generate summaries
+- Markdown may contain `http(s)` or `file:` URLs. The reader will load those images and follow links on click. Untrusted markdown can therefore cause network requests (tracking pixels) even though the reader chrome is offline.
 
 ## Contributing
 
@@ -223,8 +232,8 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md). Especially:
 - **阅读进度** — 状态栏显示滚动百分比，按文档记忆位置
 - **轻量编辑** — V1.6 新增，可直接编辑源码，实时预览，原文件只读不修改
 - **三主题** — 亮色 / 暗色 / 护眼
-- **XSS 防护** — 所有 HTML 转义，危险协议拦截，代码块载荷原样展示
-- **零外网** — 无 CDN、无追踪、无分析，完全离线
+- **XSS 防护** — 所有 HTML 转义，危险协议（含 Unicode/实体/百分号伪装）拦截，CSP + 无 Referer
+- **阅读器零外网** — 无 CDN、无追踪、无分析。Markdown 里的 `http(s)` 图片仍会被浏览器拉取
 
 ### 快速开始
 
@@ -260,8 +269,9 @@ open md-reader.html
 
 ```bash
 npm install                    # 安装 playwright-core
+node test/sanitize.mjs         # 无浏览器的消毒 / 首启检查
 node test/generate-bundle.mjs  # 从测试夹具生成 bundle
-node test/heartbeat_v16.mjs    # 运行 34 项断言
+node test/heartbeat_v16.mjs    # 运行 37 项断言
 ```
 
 ---

@@ -41,3 +41,17 @@
 ## 6. 合法链接（应正常可点）
 
 [GitHub](https://github.com) 与 [锚点](#1-直接脚本注入) 与 `mailto:` 类。
+
+## 7. 协议伪装（Unicode / 实体 / 百分号）
+
+以下渲染后不得出现可点击的 javascript:/data:/vbscript: 链接或图片。
+
+[zwsp](​javascript:alert('xss-zwsp'))
+
+[entity-colon](javascript&colon;alert('xss-colon'))
+
+[entity-decimal](javascript&#58;alert('xss-dec'))
+
+[pct-colon](javascript%3Aalert('xss-pct'))
+
+[proto-relative](//example.invalid/xss)

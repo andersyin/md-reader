@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-mdreader'; style-src 'unsafe-inline'; img-src * file: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
 <title>MD 阅读器</title>
 <style>
 :root{
@@ -421,9 +423,9 @@ body.editing #main{margin-left:0!important;padding:0!important}
     <div class="big">📖</div>
     <h2>MD 阅读器 — 让 AI 产出的 Markdown 好读起来</h2>
     <p>
-      推荐入口：让 AI 跑 <code>打开阅读器.command &lt;md文件路径&gt;</code><br>
-      自动装载文件、生成大纲与要点提炼，附带 AI 摘要（如有）。<br><br>
-      也可以直接把 <code>.md</code> 文件拖进本页面，或
+      把 <code>.md</code> 文件拖进本页面，或点下方按钮选择文件。<br>
+      多文件 + AI 摘要 sidecar：在仓库目录运行<br>
+      <code>bash open-reader.command notes.md</code>
     </p>
     <button class="pick" id="btn-pick">选择 md 文件…</button>
   </div>
@@ -462,8 +464,8 @@ body.editing #main{margin-left:0!important;padding:0!important}
 
 <input type="file" id="file-input" accept=".md,.markdown,.txt,text/markdown" style="display:none" multiple>
 
-<script src="_md_bundle.js"></script>
-<script>
+<script nonce="mdreader" src="_md_bundle.js"></script>
+<script nonce="mdreader">
 'use strict';
 /* ============================================================
  * MD 阅读器 V1.6 — 单文件 / 零依赖 / 零外网请求
@@ -488,12 +490,13 @@ body.editing #main{margin-left:0!important;padding:0!important}
  * V1.3（2026-07-29）：① frontmatter 系统/AI 字段收进折叠；② 文档元信息提炼。
  * V1.2（2026-07-29）：🖨 PDF 导出 + 🙋 人读模式（AI 向内容折叠）。
  * V1.1（2026-07-29）：① 路径复制；② 默认护眼绿主题；③ 多文档一次性传全部路径。
- * 数据链路：打开阅读器.command 收集 md（+可选 *.md.summary.json AI 摘要
+ * 数据链路：open-reader.command 收集 md（+可选 *.md.summary.json AI 摘要
  * sidecar）→ 写 _md_bundle.js（window.__MD_BUNDLE__）→ classic script
  * 装载（file:// 无 CORS）；兜底：拖拽 / 文件选择。
  * 安全：所有 md 文本先 HTML 转义再按规则生成标签；链接/图片 URL 走
- * 协议白名单（javascript: 等一律拒绝），正文不入 localStorage（只存
- * 阅读偏好与滚动位置，规避 5MB 配额）。
+ * 协议白名单（javascript: / data: / vbscript: 及 Unicode/实体/百分号伪装一律拒绝），
+ * 正文不入 localStorage（只存阅读偏好与滚动位置，规避 5MB 配额）。
+ * V1.6.2：CSP + Referrer-Policy；safeUrl 归一化后再判协议。
  * ============================================================ */
 
 /* ── 工具函数 ─────────────────────────── */
@@ -516,13 +519,51 @@ function copyText(txt,okMsg){
     navigator.clipboard.writeText(txt).then(()=>toast(okMsg)).catch(fallback);
   else fallback();
 }
-/* URL 白名单：http/https/mailto/锚点/相对路径/file；拒绝 javascript: data: vbscript: 等 */
+/* URL 白名单：http/https/mailto/锚点/相对路径/file；拒绝 javascript: data: vbscript: 等。
+ * 先解码 HTML 实体与百分号、剥 Unicode 空白/格式字符，再判协议（防 ZWSP / &colon; / %3A 伪装）。 */
+function decodeHtmlEntities(s){
+  return String(s)
+    .replace(/&amp;/gi,'&')
+    .replace(/&colon;/gi,':')
+    .replace(/&#x([0-9a-f]+);/gi,(m,h)=>{const n=parseInt(h,16);return (n>=0&&n<=0x10ffff)?String.fromCodePoint(n):'';})
+    .replace(/&#(\d+);/g,(m,d)=>{const n=Number(d);return (n>=0&&n<=0x10ffff)?String.fromCodePoint(n):'';});
+}
+function stripUrlNoise(s){
+  return String(s).replace(/[\u0000-\u0020\u007f\u00a0\u00ad\u1680\u180e\u2000-\u200f\u2028-\u202f\u205f-\u206f\u3000\u3164\ufeff\uffa0]/g,'');
+}
+function pctDecode(s){
+  let out=String(s),n=0;
+  while(n++<5){
+    try{
+      const next=decodeURIComponent(out);
+      if(next===out)break;
+      out=next;
+    }catch{
+      const next=out.replace(/%([0-9a-fA-F]{2})/g,(m,h)=>{
+        const c=parseInt(h,16);
+        if(c<=32||c===127)return '';
+        return String.fromCharCode(c);
+      });
+      if(next===out)break;
+      out=next;
+    }
+  }
+  return out;
+}
 function safeUrl(u){
-  const s=String(u).trim().replace(/[\u0000-\u0020]/g,'').toLowerCase();
-  if(/["'<>\\]|&quot;|&#39;|&lt;|&gt;/.test(s))return false; /* 含引号/尖括号的畸形 URL 一律拒绝 */
+  const raw=String(u).trim();
+  if(!raw)return false;
+  if(/["'<>\\]|&quot;|&#39;|&lt;|&gt;/.test(raw.toLowerCase()))return false;
+  let s=stripUrlNoise(pctDecode(decodeHtmlEntities(raw))).toLowerCase();
+  s=stripUrlNoise(pctDecode(decodeHtmlEntities(s))).toLowerCase();
+  if(s.startsWith('//')||s.startsWith('\\\\'))return false;
   if(/^(https?:|mailto:|file:|#)/.test(s))return true;
-  if(/^[a-z][a-z0-9+.-]*:/.test(s))return false;   /* 其余带协议的一律拒绝 */
-  return true;                                      /* 相对路径 / 绝对路径 */
+  if(/^[a-z][a-z0-9+.-]*:/.test(s))return false;
+  return true;
+}
+function asList(v){
+  if(v==null||v==='')return [];
+  return Array.isArray(v)?v:[v];
 }
 
 /* ── Markdown 解析器（GFM 常用子集）────── */
@@ -533,7 +574,7 @@ const MD = {
     let s=String(raw).replace(/`([^`\n]+)`/g,(m,c)=>{codes.push(c);return '\u0000C'+(codes.length-1)+'\u0000';});
     s=esc(s);
     s=s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g,
-      (m,alt,src)=> safeUrl(src)?'<img src="'+src+'" alt="'+alt+'" loading="lazy">':alt);
+      (m,alt,src)=> safeUrl(src)?'<img src="'+src+'" alt="'+alt+'" loading="lazy" referrerpolicy="no-referrer">':alt);
     s=s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g,
       (m,txt,href)=> safeUrl(href)
         ? '<a href="'+href+'"'+(href.startsWith('#')?'':' target="_blank" rel="noopener noreferrer"')+'>'+txt+'</a>'
@@ -888,16 +929,17 @@ const App={
 
   renderAiCard(sum){
     const el=$('#ai-card');
-    if(!sum||(!sum.tl_dr&&!(sum.key_points||[]).length)){el.style.display='none';el.innerHTML='';return;}
-    const li=a=>(a||[]).map(x=>'<li>'+esc(String(x))+'</li>').join('');
+    const points=asList(sum&&sum.key_points), conclusions=asList(sum&&sum.conclusions), actions=asList(sum&&sum.action_items);
+    if(!sum||(!sum.tl_dr&&!points.length)){el.style.display='none';el.innerHTML='';return;}
+    const li=a=>asList(a).map(x=>'<li>'+esc(String(x))+'</li>').join('');
     el.style.display='';
     el.innerHTML='<div class="ai-head"><span>✨ AI 摘要</span><small>'+
-        esc(sum.generated_by||'')+(sum.generated_at?' · '+esc(sum.generated_at):'')+'</small></div>'+
+        esc(sum.generated_by||'')+(sum.generated_at?' · '+esc(String(sum.generated_at)):'')+'</small></div>'+
       '<div class="ai-body">'+
-      (sum.tl_dr?'<div class="ai-tldr">'+esc(sum.tl_dr)+'</div>':'')+
-      ((sum.key_points||[]).length?'<h5>核心要点</h5><ul>'+li(sum.key_points)+'</ul>':'')+
-      ((sum.conclusions||[]).length?'<h5>核心结论</h5><ul>'+li(sum.conclusions)+'</ul>':'')+
-      ((sum.action_items||[]).length?'<h5>行动项</h5><ul>'+li(sum.action_items)+'</ul>':'')+
+      (sum.tl_dr?'<div class="ai-tldr">'+esc(String(sum.tl_dr))+'</div>':'')+
+      (points.length?'<h5>核心要点</h5><ul>'+li(points)+'</ul>':'')+
+      (conclusions.length?'<h5>核心结论</h5><ul>'+li(conclusions)+'</ul>':'')+
+      (actions.length?'<h5>行动项</h5><ul>'+li(actions)+'</ul>':'')+
       '</div>';
   },
 
@@ -949,10 +991,10 @@ const App={
     else h+='<div class="dg-muted">未提取到概要</div>';
     if(sum.tags.length)h+='<div class="dg-tags">'+sum.tags.map(t=>'<span>'+esc(t)+'</span>').join('')+'</div>';
     /* ② AI 摘要（如有 sidecar，放在概要之后作补充） */
-    if(f.summary&&(f.summary.tl_dr||(f.summary.key_points||[]).length)){
+    if(f.summary&&(f.summary.tl_dr||asList(f.summary.key_points).length)){
       h+='<h3>✨ AI 摘要</h3>';
-      if(f.summary.tl_dr)h+='<div class="dg-item">'+esc(f.summary.tl_dr)+'</div>';
-      (f.summary.key_points||[]).forEach(k=>h+='<div class="dg-item">• '+esc(String(k))+'</div>');
+      if(f.summary.tl_dr)h+='<div class="dg-item">'+esc(String(f.summary.tl_dr))+'</div>';
+      asList(f.summary.key_points).forEach(k=>h+='<div class="dg-item">• '+esc(String(k))+'</div>');
     }
     /* ③ 全文脑图：标题骨架嵌套树 + 每节挂提炼要点 */
     h+='<h3>🧠 全文脑图</h3>';
@@ -1446,8 +1488,8 @@ addEventListener('keydown',e=>{
   if(e.key==='j'||e.key==='J'){e.preventDefault();window.scrollBy({top:scrollAmt,behavior:'smooth'});}
   else if(e.key==='k'||e.key==='K'){e.preventDefault();window.scrollBy({top:-scrollAmt,behavior:'smooth'});}
   else if(e.key==='/'){e.preventDefault();Search.show();}
-  else if(e.key==='g'||e.key==='G'){e.preventDefault();window.scrollTo({top:0,behavior:'smooth'});}
-  else if(e.key==='G'&&e.shiftKey){e.preventDefault();window.scrollTo({top:document.documentElement.scrollHeight,behavior:'smooth'});}
+  else if(e.key==='g'){e.preventDefault();window.scrollTo({top:0,behavior:'smooth'});}
+  else if(e.key==='G'){e.preventDefault();window.scrollTo({top:document.documentElement.scrollHeight,behavior:'smooth'});}
   else if(e.key==='t'||e.key==='T'){e.preventDefault();$('#btn-side').click();}
   else if(e.key==='d'||e.key==='D'){e.preventDefault();$('#btn-digest').click();}
   else if(e.key==='['){e.preventDefault();if(App.cur>0)App.open(App.cur-1);}

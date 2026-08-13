@@ -9,7 +9,8 @@
     "url": "https://github.com/andersyin/md-reader.git"
   },
   "scripts": {
-    "test": "node test/generate-bundle.mjs && node test/heartbeat_v16.mjs",
+    "test": "node test/sanitize.mjs && node test/generate-bundle.mjs && node test/heartbeat_v16.mjs",
+    "test:sanitize": "node test/sanitize.mjs",
     "test:bundle": "node test/generate-bundle.mjs",
     "test:phase": "node test/generate-bundle.mjs && node test/heartbeat_v16.mjs"
   },
